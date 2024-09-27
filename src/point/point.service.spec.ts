@@ -1,47 +1,43 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PointController } from './point.controller';
 import { DatabaseModule } from '../database/database.module';
+import { PointService } from './point.service';
+import { PointController } from './point.controller';
 
 describe('AppController', () => {
-  let pointController: PointController;
+  let pointService: PointService;
 
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       imports: [DatabaseModule],
       controllers: [PointController],
+      providers: [PointService],
     }).compile();
 
-    pointController = app.get<PointController>(PointController);
+    pointService = app.get<PointService>(PointService);
   });
 
   describe('포인트 충전: /point/:id/charge (PATCH)', () => {
     it('should define charging method', () => {
-      expect(pointController.charge).toBeDefined();
+      expect(pointService.charge).toBeDefined();
     });
 
     /**
      * 충전된 포인트를 반환한다.
      */
     it('should return charged point', async () => {
-      const userPoint = await pointController.charge(1, { amount: 3000 });
-      expect(userPoint).toEqual({
+      const charged = await pointService.charge(1, { amount: 5000 });
+      expect(charged).toEqual({
         id: 1,
-        point: 3000,
+        point: 5000,
         updateMillis: expect.any(Number),
       });
     });
 
     /**
-     * TODO: 동시에 여러 건의 충전 발생 시 순차 처리되어야 한다.
-     */
-
-    /**
      * 충전 금액이 0보다 작을 경우 충전이 되지 않아야 한다.
      */
     it('should not charge if amount is less than 0', async () => {
-      await expect(
-        pointController.charge(1, { amount: -100 }),
-      ).rejects.toThrow();
+      await expect(pointService.charge(1, { amount: -100 })).rejects.toThrow();
     });
 
     /**
@@ -55,19 +51,19 @@ describe('AppController', () => {
 
   describe('포인트 조회: /point/:id (GET)', () => {
     it('should define point getting method', () => {
-      expect(pointController.point).toBeDefined();
+      expect(pointService.getPoint).toBeDefined();
     });
 
     /**
      * 충전된 유저의 포인트를 반환해야 한다.
      */
     it('should return point of user', async () => {
-      await pointController.charge(1, { amount: 5000 });
+      await pointService.charge(1, { amount: 3000 });
 
-      const charged = await pointController.point(1);
-      expect(charged).toEqual({
+      const userPoint = await pointService.getPoint(1);
+      expect(userPoint).toEqual({
         id: 1,
-        point: 5000,
+        point: 3000,
         updateMillis: expect.any(Number),
       });
     });
@@ -75,70 +71,74 @@ describe('AppController', () => {
 
   describe('포인트 사용: /point/:id/use (PATCH)', () => {
     it('should define point using method', () => {
-      expect(pointController.use).toBeDefined();
+      expect(pointService.use).toBeDefined();
     });
 
     /**
-     * 사용된 포인트를 반환한다.
+     * 사용한 포인트를 반환한다.
      */
     it('should return used point', async () => {
-      await pointController.charge(1, { amount: 3000 });
-
-      const userPoint = await pointController.use(1, { amount: 1000 });
-      expect(userPoint).toEqual({
+      await pointService.charge(1, { amount: 4000 });
+      const used = await pointService.use(1, { amount: 3000 });
+      expect(used).toEqual({
         id: 1,
-        point: -1000,
+        point: 3000,
         updateMillis: expect.any(Number),
       });
     });
 
     /**
-     * TODO: 동시에 여러 건의 사용 발생 시 순차 처리되어야 한다.
-     */
-
-    /**
      * 사용 금액이 0보다 작을 경우 사용이 되지 않아야 한다.
      */
     it('should not use if amount is less than 0', async () => {
-      await expect(pointController.use(1, { amount: -100 })).rejects.toThrow();
+      await expect(pointService.use(1, { amount: -100 })).rejects.toThrow();
     });
 
     /**
      * 잔액이 부족할 경우 사용이 되지 않아야 한다.
      */
     it('should not use if point is not enough', async () => {
-      await expect(pointController.use(1, { amount: 10000 })).rejects.toThrow();
+      await pointService.charge(1, { amount: 4000 });
+
+      await expect(pointService.use(1, { amount: 5000 })).rejects.toThrow();
     });
   });
 
   describe('포인트 이용 내역 조회: /point/:id/histories', () => {
     it('should define point history getting method', () => {
-      expect(pointController.history).toBeDefined();
+      expect(pointService.getHistories).toBeDefined();
     });
     /**
      * 특정 유저의 포인트 충전/이용 내역을 조회한다.
      */
     it('should return point histories of user', async () => {
-      await pointController.charge(1, { amount: 3000 });
-      await pointController.use(1, { amount: 1000 });
+      await pointService.charge(1, { amount: 3000 });
+      await pointService.use(1, { amount: 1000 });
 
-      const histories = await pointController.history(1);
-      expect(histories).toEqual([
-        {
-          id: 1,
-          userId: 1,
-          amount: 3000,
-          type: 'CHARGE',
-          timeMillis: expect.any(Number),
-        },
-        {
-          id: 2,
-          userId: 1,
-          amount: 1000,
-          type: 'USE',
-          timeMillis: expect.any(Number),
-        },
-      ]);
+      const histories = await pointService.getHistories(1);
+      expect(histories).toHaveLength(2);
+      expect(histories[0]).toEqual({
+        id: 1,
+        userId: 1,
+        amount: 3000,
+        type: 'CHARGE',
+        timeMillis: expect.any(Number),
+      });
+      expect(histories[1]).toEqual({
+        id: 2,
+        userId: 1,
+        amount: 1000,
+        type: 'USE',
+        timeMillis: expect.any(Number),
+      });
+    });
+
+    /**
+     * 특정 유저의 포인트 이용 내역이 없을 경우 빈 배열을 반환한다.
+     */
+    it('should return empty array if point histories of user is not exist', async () => {
+      const histories = await pointService.getHistories(1);
+      expect(histories).toHaveLength(0);
     });
   });
 });
