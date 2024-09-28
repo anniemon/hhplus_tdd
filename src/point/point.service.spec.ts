@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DatabaseModule } from '../database/database.module';
 import { PointService } from './point.service';
 
-describe('AppController', () => {
+describe('PointService', () => {
   let pointService: PointService;
 
   beforeEach(async () => {
