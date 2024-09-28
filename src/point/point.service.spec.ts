@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DatabaseModule } from '../database/database.module';
 import { PointService } from './point.service';
-import { PointController } from './point.controller';
 
 describe('AppController', () => {
   let pointService: PointService;
@@ -9,7 +8,6 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       imports: [DatabaseModule],
-      controllers: [PointController],
       providers: [PointService],
     }).compile();
 
